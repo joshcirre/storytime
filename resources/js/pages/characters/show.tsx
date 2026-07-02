@@ -1,0 +1,270 @@
+import { Head, usePoll } from '@inertiajs/react';
+import { AvatarCall } from '@runwayml/avatars-react';
+import { Phone, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import CallSessionController from '@/actions/App/Http/Controllers/CallSessionController';
+import Heading from '@/components/heading';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
+import { index, show } from '@/routes/characters';
+import type { CharacterData } from '@/types';
+
+import '@runwayml/avatars-react/styles.css';
+
+const processingSteps: Record<string, string> = {
+    pending: 'Getting ready...',
+    generating_image: 'Painting their portrait...',
+    creating_avatar: 'Teaching them to talk...',
+};
+
+async function json<T>(
+    url: string,
+    method: 'GET' | 'POST' = 'GET',
+): Promise<T> {
+    const xsrf = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('XSRF-TOKEN='))
+        ?.split('=')[1];
+
+    const response = await fetch(url, {
+        method,
+        headers: {
+            Accept: 'application/json',
+            'X-XSRF-TOKEN': xsrf ? decodeURIComponent(xsrf) : '',
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    return response.json() as Promise<T>;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+type Credentials = { sessionId: string; sessionKey: string };
+
+function CallSection({ character }: { character: CharacterData }) {
+    const [phase, setPhase] = useState<'idle' | 'connecting' | 'live'>('idle');
+    const [credentials, setCredentials] = useState<Credentials | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    async function startCall() {
+        setPhase('connecting');
+        setError(null);
+
+        try {
+            const { callSessionId } = await json<{ callSessionId: number }>(
+                CallSessionController.store.url(character.id),
+                'POST',
+            );
+
+            for (let attempt = 0; attempt < 45; attempt++) {
+                await sleep(2000);
+
+                const session = await json<{
+                    status: string;
+                    sessionId: string;
+                    sessionKey: string | null;
+                    failure: string | null;
+                }>(CallSessionController.show.url(callSessionId));
+
+                if (session.status === 'READY' && session.sessionKey) {
+                    setCredentials({
+                        sessionId: session.sessionId,
+                        sessionKey: session.sessionKey,
+                    });
+                    setPhase('live');
+
+                    return;
+                }
+
+                if (
+                    ['FAILED', 'CANCELLED', 'COMPLETED'].includes(
+                        session.status,
+                    )
+                ) {
+                    throw new Error(
+                        session.failure ?? 'The call could not be started.',
+                    );
+                }
+            }
+
+            throw new Error('Timed out waiting for the call to start.');
+        } catch (caught) {
+            setError(
+                caught instanceof Error
+                    ? caught.message
+                    : 'The call could not be started.',
+            );
+            setPhase('idle');
+        }
+    }
+
+    if (phase === 'live' && credentials && character.runwayAvatarId) {
+        return (
+            <AvatarCall
+                avatarId={character.runwayAvatarId}
+                sessionId={credentials.sessionId}
+                sessionKey={credentials.sessionKey}
+                avatarImageUrl={character.imageUrl ?? undefined}
+                onEnd={() => setPhase('idle')}
+                onError={(callError) => {
+                    setError(callError.message);
+                    setPhase('idle');
+                }}
+                className="aspect-video w-full overflow-hidden rounded-xl border bg-black"
+            />
+        );
+    }
+
+    return (
+        <div className="flex flex-col items-start gap-3">
+            {error && (
+                <Alert variant="destructive">
+                    <AlertTitle>Call failed</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+            )}
+
+            <Button
+                size="lg"
+                onClick={startCall}
+                disabled={phase === 'connecting'}
+            >
+                {phase === 'connecting' ? (
+                    <>
+                        <Spinner />
+                        Waking up {character.name}...
+                    </>
+                ) : (
+                    <>
+                        <Phone />
+                        Start a video call
+                    </>
+                )}
+            </Button>
+        </div>
+    );
+}
+
+export default function CharactersShow({
+    character,
+}: {
+    character: CharacterData;
+}) {
+    const { start, stop } = usePoll(
+        3000,
+        { only: ['character'] },
+        { autoStart: false },
+    );
+
+    useEffect(() => {
+        if (character.isProcessing) {
+            start();
+        } else {
+            stop();
+        }
+    }, [character.isProcessing, start, stop]);
+
+    return (
+        <>
+            <Head title={character.name} />
+
+            <div className="flex flex-col gap-6 p-4">
+                <Heading
+                    title={character.name}
+                    description={character.personality}
+                />
+
+                <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+                    <div className="space-y-4">
+                        <div className="aspect-square overflow-hidden rounded-xl border bg-muted">
+                            {character.imageUrl ? (
+                                <img
+                                    src={character.imageUrl}
+                                    alt={character.name}
+                                    className="size-full object-cover"
+                                />
+                            ) : (
+                                <Skeleton className="flex size-full items-center justify-center rounded-none">
+                                    <Sparkles className="size-10 text-muted-foreground" />
+                                </Skeleton>
+                            )}
+                        </div>
+
+                        {character.drawingUrl && (
+                            <div className="space-y-1">
+                                <p className="text-sm font-medium">
+                                    The original drawing
+                                </p>
+                                <img
+                                    src={character.drawingUrl}
+                                    alt={`Original drawing of ${character.name}`}
+                                    className="max-h-40 w-fit rounded-lg border object-contain"
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    <div>
+                        {character.isProcessing && (
+                            <div className="flex items-center gap-3 rounded-xl border p-6">
+                                <Spinner />
+                                <div>
+                                    <p className="font-medium">
+                                        {processingSteps[character.status] ??
+                                            'Working on it...'}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                        This usually takes a minute or two. The
+                                        page updates on its own.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {character.status === 'failed' && (
+                            <Alert variant="destructive">
+                                <AlertTitle>
+                                    We couldn't bring this character to life
+                                </AlertTitle>
+                                <AlertDescription>
+                                    {character.failureReason ??
+                                        'Something went wrong. Try creating them again.'}
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
+                        {character.status === 'ready' && (
+                            <div className="space-y-4">
+                                <p className="text-sm text-muted-foreground">
+                                    {character.name} is ready to talk! Ask about
+                                    the weather where you live, or ask for a
+                                    joke.
+                                </p>
+                                <CallSection character={character} />
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </>
+    );
+}
+
+CharactersShow.layout = ({ character }: { character: CharacterData }) => ({
+    breadcrumbs: [
+        {
+            title: 'Characters',
+            href: index(),
+        },
+        {
+            title: character.name,
+            href: show(character.id),
+        },
+    ],
+});

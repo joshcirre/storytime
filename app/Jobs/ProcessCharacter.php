@@ -1,0 +1,165 @@
+<?php
+
+namespace App\Jobs;
+
+use App\CharacterStatus;
+use App\Models\Character;
+use App\Services\Runway;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Sleep;
+use Illuminate\Support\Str;
+use RuntimeException;
+use Throwable;
+
+class ProcessCharacter implements ShouldQueue
+{
+    use Queueable;
+
+    public int $timeout = 900;
+
+    public int $tries = 1;
+
+    /**
+     * Create a new job instance.
+     */
+    public function __construct(public Character $character) {}
+
+    /**
+     * Execute the job: generate the character portrait with Runway
+     * text-to-image, then create a conversational avatar from it.
+     */
+    public function handle(Runway $runway): void
+    {
+        $this->character->update(['status' => CharacterStatus::GeneratingImage]);
+
+        $imageUrl = $this->generatePortrait($runway);
+        $this->storePortrait($imageUrl);
+
+        $this->character->update(['status' => CharacterStatus::CreatingAvatar]);
+
+        $avatarId = $this->createAvatar($runway, $imageUrl);
+
+        $this->character->update([
+            'runway_avatar_id' => $avatarId,
+            'status' => CharacterStatus::Ready,
+        ]);
+    }
+
+    public function failed(?Throwable $exception): void
+    {
+        $this->character->markFailed($exception?->getMessage() ?? 'Character processing failed.');
+    }
+
+    /**
+     * Run the text-to-image task and return the Runway-hosted output URL.
+     */
+    protected function generatePortrait(Runway $runway): string
+    {
+        $references = [];
+
+        if ($this->character->drawing_path !== null) {
+            $disk = Storage::disk('public');
+
+            $references[] = [
+                'uri' => 'data:'.$disk->mimeType($this->character->drawing_path).';base64,'
+                    .base64_encode($disk->get($this->character->drawing_path)),
+                'tag' => 'drawing',
+            ];
+        }
+
+        $taskId = $runway->createImageTask($this->imagePrompt(), $references);
+
+        return $this->waitForImageTask($runway, $taskId);
+    }
+
+    protected function imagePrompt(): string
+    {
+        $subject = $this->character->drawing_path !== null
+            ? 'the character drawn in @drawing, faithfully keeping its colors, shapes, and unique details'
+            : trim((string) $this->character->prompt);
+
+        return "A friendly animated-movie style portrait of {$subject}. "
+            .'Front-facing with the face clearly visible and centered, big warm smile, '
+            .'soft studio lighting, simple cheerful background.';
+    }
+
+    /**
+     * Poll the task until it succeeds and return the first output URL.
+     * Runway asks that tasks are polled no faster than every 5 seconds.
+     */
+    protected function waitForImageTask(Runway $runway, string $taskId): string
+    {
+        foreach (range(1, 60) as $attempt) {
+            Sleep::for(5)->seconds();
+
+            $task = $runway->getTask($taskId);
+
+            if ($task['status'] === 'SUCCEEDED') {
+                return $task['output'][0]
+                    ?? throw new RuntimeException('Image task succeeded but returned no output.');
+            }
+
+            if (in_array($task['status'], ['FAILED', 'CANCELLED'])) {
+                throw new RuntimeException('Image generation failed: '.($task['failure'] ?? $task['status']));
+            }
+        }
+
+        throw new RuntimeException('Timed out waiting for image generation.');
+    }
+
+    /**
+     * Download the generated portrait, since Runway output URLs expire within 24-48 hours.
+     */
+    protected function storePortrait(string $imageUrl): void
+    {
+        $path = 'characters/'.Str::uuid().'.png';
+
+        Storage::disk('public')->put($path, Http::timeout(60)->get($imageUrl)->throw()->body());
+
+        $this->character->update(['image_path' => $path]);
+    }
+
+    protected function createAvatar(Runway $runway, string $referenceImageUrl): string
+    {
+        $avatar = $runway->createAvatar(
+            $this->character->name,
+            $this->avatarPersonality(),
+            $referenceImageUrl,
+            $this->character->voice,
+        );
+
+        foreach (range(1, 60) as $attempt) {
+            if ($avatar['status'] === 'READY') {
+                return $avatar['id'];
+            }
+
+            if ($avatar['status'] === 'FAILED') {
+                throw new RuntimeException('Avatar creation failed: '.($avatar['failureReason'] ?? 'unknown reason'));
+            }
+
+            Sleep::for(5)->seconds();
+
+            $avatar = $runway->getAvatar($avatar['id']);
+        }
+
+        throw new RuntimeException('Timed out waiting for avatar creation.');
+    }
+
+    /**
+     * Compose the avatar's system prompt from the character's personality,
+     * including guidance on when to use the conversation tools.
+     */
+    protected function avatarPersonality(): string
+    {
+        return "Your name is {$this->character->name}. {$this->character->personality} "
+            .'You are a beloved character created from a child\'s drawing, and you are video-chatting '
+            .'with the child who made you. Be warm, playful, encouraging, and curious about their world. '
+            .'Keep replies short and easy for a child to follow. Never discuss scary or grown-up topics. '
+            .'When they mention a city or where they live, or ask about the weather, use the get_weather tool '
+            .'and react to the result with personality. When they ask for a joke, use the tell_joke tool and '
+            .'deliver the joke with enthusiasm.';
+    }
+}
