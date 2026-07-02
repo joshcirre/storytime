@@ -74,6 +74,42 @@ test('it sends the drawing as a data uri reference image', function () {
     });
 });
 
+test('it retries without the user personality when moderation rejects the text', function () {
+    Storage::fake('public');
+    Sleep::fake();
+
+    $character = Character::factory()->create(['personality' => 'A cute fairy who loves playing with friends.']);
+
+    Http::fake([
+        'api.dev.runwayml.com/v1/text_to_image' => Http::response(['id' => 'task-1']),
+        'api.dev.runwayml.com/v1/tasks/task-1' => Http::response([
+            'id' => 'task-1',
+            'status' => 'SUCCEEDED',
+            'output' => ['https://cdn.runwayml.com/generated.png'],
+        ]),
+        'cdn.runwayml.com/*' => Http::response('fake-image-bytes'),
+        'api.dev.runwayml.com/v1/avatars' => Http::sequence()
+            ->push([
+                'id' => 'avatar-rejected',
+                'status' => 'FAILED',
+                'failureReason' => 'This text cannot be used for an avatar. Please update the personality or start script.',
+            ])
+            ->push(['id' => 'avatar-clean', 'status' => 'READY']),
+    ]);
+
+    (new ProcessCharacter($character))->handle(app(Runway::class));
+
+    expect($character->refresh())
+        ->status->toBe(CharacterStatus::Ready)
+        ->runway_avatar_id->toBe('avatar-clean');
+
+    Http::assertSentCount(5);
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://api.dev.runwayml.com/v1/avatars'
+            && ! str_contains($request['personality'], 'cute fairy');
+    });
+});
+
 test('it fails cleanly when the drawing file is missing', function () {
     Storage::fake('public');
     Sleep::fake();

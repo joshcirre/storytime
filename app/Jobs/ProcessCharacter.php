@@ -85,9 +85,10 @@ class ProcessCharacter implements ShouldQueue
             ? 'the character drawn in @drawing, faithfully keeping its colors, shapes, and unique details'
             : trim((string) $this->character->prompt);
 
-        return "A friendly animated-movie style portrait of {$subject}. "
-            .'Front-facing with the face clearly visible and centered, big warm smile, '
-            .'soft studio lighting, simple cheerful background.';
+        return "A friendly 3D animated movie character portrait of {$subject}. "
+            .'Rendered in a polished 3D animation film style with soft rounded shapes and '
+            .'warm cinematic lighting. Front-facing with the face clearly visible and centered, '
+            .'big warm smile, simple cheerful background.';
     }
 
     /**
@@ -135,6 +136,32 @@ class ProcessCharacter implements ShouldQueue
             $this->character->voice,
         );
 
+        try {
+            return $this->waitForAvatar($runway, $avatar);
+        } catch (RuntimeException $exception) {
+            if (! str_contains($exception->getMessage(), 'text cannot be used')) {
+                throw $exception;
+            }
+
+            // The user-written personality tripped Runway's text moderation
+            // even in quoted form, so keep the character alive with the base
+            // persona rather than failing the whole pipeline.
+            $avatar = $runway->createAvatar(
+                $this->character->name,
+                $this->avatarPersonality(includeUserPersonality: false),
+                $referenceImageUrl,
+                $this->character->voice,
+            );
+
+            return $this->waitForAvatar($runway, $avatar);
+        }
+    }
+
+    /**
+     * @param  array{id: string, status: string, failureReason?: string}  $avatar
+     */
+    protected function waitForAvatar(Runway $runway, array $avatar): string
+    {
         foreach (range(1, 60) as $attempt) {
             if ($avatar['status'] === 'READY') {
                 return $avatar['id'];
@@ -153,22 +180,28 @@ class ProcessCharacter implements ShouldQueue
     }
 
     /**
-     * Compose the avatar's system prompt from the character's personality,
-     * including guidance on when to use the conversation tools.
+     * Compose the avatar's system prompt, including guidance on when to use
+     * the conversation tools. Runway's avatar moderation rejects
+     * child-directed phrasing and some innocuous phrase combinations in the
+     * user's own words ("cute ... playing with friends"), so the persona is
+     * framed around the artist and the user's personality is embedded as the
+     * artist's quoted description — both verified against the live API.
      */
-    /**
-     * Runway's avatar moderation rejects child-directed phrasing (e.g.
-     * "chatting with the child who made you"), so the persona is framed
-     * around the artist instead — verified against the live API.
-     */
-    protected function avatarPersonality(): string
+    protected function avatarPersonality(bool $includeUserPersonality = true): string
     {
-        return "Your name is {$this->character->name}. {$this->character->personality} "
+        $base = "Your name is {$this->character->name}. "
             .'You are a cheerful storybook character brought to life from a hand-drawn picture, '
             .'chatting with the artist who drew you. Be warm, playful, and encouraging. '
             .'Keep replies short, upbeat, and family-friendly. '
             .'When someone mentions a city or asks about the weather, use the get_weather tool '
             .'and react to the result with personality. When someone asks for a joke, use the '
             .'tell_joke tool and deliver it with enthusiasm.';
+
+        if (! $includeUserPersonality) {
+            return $base;
+        }
+
+        return $base.' The artist describes you like this: "'
+            .trim($this->character->personality).'" Stay true to that description.';
     }
 }
