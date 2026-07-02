@@ -1,5 +1,4 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { CloudSun, MessageCircleHeart, Smile } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Button } from '@/components/ui/button';
 import { dashboard, login, register } from '@/routes';
@@ -86,52 +85,13 @@ function HeroVisual() {
     );
 }
 
-const steps = [
-    {
-        name: 'Start with a drawing',
-        description:
-            'Snap a photo of any drawing and upload it, or just describe a character in a sentence.',
-    },
-    {
-        name: 'Watch them come to life',
-        description:
-            'Runway paints a polished portrait of the character and gives it a voice and personality you choose.',
-    },
-    {
-        name: 'Hop on a video call',
-        description:
-            'Your character answers a live video call, ready to chat, giggle, and ask about your day.',
-    },
-];
-
-const talents = [
-    {
-        name: 'They know the weather',
-        description:
-            'Mention where you live and your character checks the real forecast, then reacts in character.',
-        icon: CloudSun,
-    },
-    {
-        name: 'They tell great jokes',
-        description:
-            'Ask for a joke and they fetch a fresh, family-friendly one every time.',
-        icon: Smile,
-    },
-    {
-        name: 'They stay themselves',
-        description:
-            'The name and personality you give a character shapes everything they say.',
-        icon: MessageCircleHeart,
-    },
-];
-
 export default function Welcome() {
     const { auth } = usePage<PageProps>().props;
 
     return (
         <>
             <Head title="Bring drawings to life" />
-            <div className="min-h-svh bg-background text-foreground">
+            <div className="flex min-h-svh flex-col bg-background text-foreground">
                 <header>
                     <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5 lg:px-8">
                         <a
@@ -165,8 +125,8 @@ export default function Welcome() {
                     </div>
                 </header>
 
-                <main>
-                    <section className="pt-16 pb-20 sm:pt-24">
+                <main className="flex flex-1 items-center">
+                    <section className="w-full py-16">
                         <div className="mx-auto max-w-6xl px-6 lg:px-8">
                             <div className="grid items-center gap-x-8 gap-y-16 lg:grid-cols-2">
                                 <div className="text-center lg:text-left">
@@ -179,7 +139,7 @@ export default function Welcome() {
                                         call with the character your kid
                                         imagined.
                                     </p>
-                                    <div className="mt-8 flex items-center justify-center gap-4 lg:justify-start">
+                                    <div className="mt-8 flex items-center justify-center lg:justify-start">
                                         <Button asChild size="lg">
                                             <Link
                                                 href={
@@ -191,104 +151,9 @@ export default function Welcome() {
                                                 Bring a drawing to life
                                             </Link>
                                         </Button>
-                                        <Button
-                                            asChild
-                                            variant="link"
-                                            size="lg"
-                                        >
-                                            <a href="#how-it-works">
-                                                See how it works
-                                            </a>
-                                        </Button>
                                     </div>
                                 </div>
                                 <HeroVisual />
-                            </div>
-                        </div>
-                    </section>
-
-                    <section id="how-it-works" className="py-20">
-                        <div className="mx-auto max-w-6xl px-6 lg:px-8">
-                            <p className="font-display text-base font-medium text-primary">
-                                How it works
-                            </p>
-                            <h2 className="mt-2 max-w-[35ch] font-display text-4xl font-medium tracking-tight text-balance">
-                                From refrigerator door to video call in minutes.
-                            </h2>
-                            <dl className="mt-12 grid gap-x-8 gap-y-10 sm:grid-cols-3">
-                                {steps.map((step, index) => (
-                                    <div key={step.name}>
-                                        <dt className="flex items-center gap-3">
-                                            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent font-display text-sm font-medium text-accent-foreground">
-                                                {index + 1}
-                                            </span>
-                                            <span className="font-medium">
-                                                {step.name}
-                                            </span>
-                                        </dt>
-                                        <dd className="mt-3 text-base/7 text-pretty text-muted-foreground sm:text-sm/6">
-                                            {step.description}
-                                        </dd>
-                                    </div>
-                                ))}
-                            </dl>
-                        </div>
-                    </section>
-
-                    <section className="py-20">
-                        <div className="mx-auto max-w-6xl px-6 lg:px-8">
-                            <p className="font-display text-base font-medium text-primary">
-                                Not just a pretty face
-                            </p>
-                            <h2 className="mt-2 max-w-[35ch] font-display text-4xl font-medium tracking-tight text-balance">
-                                Characters with real talents.
-                            </h2>
-                            <p className="mt-4 max-w-[56ch] text-base text-pretty text-muted-foreground">
-                                Mid-conversation, your character can reach out
-                                to the real world and bring back something true.
-                            </p>
-                            <dl className="mt-12 grid gap-x-8 gap-y-10 sm:grid-cols-3">
-                                {talents.map((talent) => (
-                                    <div key={talent.name}>
-                                        <dt className="flex items-center gap-2 font-medium">
-                                            <talent.icon
-                                                aria-hidden="true"
-                                                className="size-5 shrink-0 text-primary"
-                                            />
-                                            {talent.name}
-                                        </dt>
-                                        <dd className="mt-3 text-base/7 text-pretty text-muted-foreground sm:text-sm/6">
-                                            {talent.description}
-                                        </dd>
-                                    </div>
-                                ))}
-                            </dl>
-                        </div>
-                    </section>
-
-                    <section className="py-20">
-                        <div className="mx-auto max-w-6xl px-6 lg:px-8">
-                            <div className="rounded-3xl bg-accent px-6 py-16 text-center dark:bg-accent/40">
-                                <h2 className="mx-auto max-w-[35ch] font-display text-4xl font-medium tracking-tight text-balance">
-                                    Someone very silly is waiting to meet you.
-                                </h2>
-                                <p className="mx-auto mt-4 max-w-[48ch] text-lg text-pretty text-muted-foreground">
-                                    It takes about two minutes to bring a
-                                    drawing to life.
-                                </p>
-                                <div className="mt-8">
-                                    <Button asChild size="lg" variant="outline">
-                                        <Link
-                                            href={
-                                                auth.user
-                                                    ? dashboard()
-                                                    : register()
-                                            }
-                                        >
-                                            Create a character
-                                        </Link>
-                                    </Button>
-                                </div>
                             </div>
                         </div>
                     </section>
