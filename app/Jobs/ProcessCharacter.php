@@ -79,16 +79,25 @@ class ProcessCharacter implements ShouldQueue
         return $this->waitForImageTask($runway, $taskId);
     }
 
+    /**
+     * The gpt_image_2 prompt that won a side-by-side bake-off: it keeps the
+     * drawing's exact design (stick limbs, scribbles and all) while changing
+     * the medium to a 3D film render, instead of redesigning the character.
+     */
     protected function imagePrompt(): string
     {
-        $subject = $this->character->drawing_path !== null
-            ? 'the character drawn in @drawing, faithfully keeping its colors, shapes, and unique details'
-            : trim((string) $this->character->prompt);
+        $render = 'It must be a fully 3D CGI render, not a flat illustration: volumetric forms, '
+            .'detailed textures, soft global illumination, glossy expressive eyes. '
+            .'Front-facing portrait, face centered, big warm smile, softly blurred cheerful background.';
 
-        return "A friendly 3D animated movie character portrait of {$subject}. "
-            .'Rendered in a polished 3D animation film style with soft rounded shapes and '
-            .'warm cinematic lighting. Front-facing with the face clearly visible and centered, '
-            .'big warm smile, simple cheerful background.';
+        if ($this->character->drawing_path !== null) {
+            return 'Recreate the character from @drawing as a high-quality 3D animated film character, '
+                .'like a still from a modern Pixar movie. '.$render
+                .' Faithfully keep the drawing\'s colors, shapes, outfit, and charm.';
+        }
+
+        return 'A high-quality 3D animated film character, like a still from a modern Pixar movie: '
+            .trim((string) $this->character->prompt).'. '.$render;
     }
 
     /**
@@ -97,7 +106,7 @@ class ProcessCharacter implements ShouldQueue
      */
     protected function waitForImageTask(Runway $runway, string $taskId): string
     {
-        foreach (range(1, 60) as $attempt) {
+        foreach (range(1, 90) as $attempt) {
             Sleep::for(5)->seconds();
 
             $task = $runway->getTask($taskId);

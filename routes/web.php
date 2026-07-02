@@ -10,7 +10,7 @@ Route::inertia('/', 'welcome')->name('home');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
 
-    Route::resource('characters', CharacterController::class)->only(['index', 'create', 'store', 'show']);
+    Route::resource('characters', CharacterController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
     Route::post('characters/{character}/retry', [CharacterController::class, 'retry'])->name('characters.retry');
 
     Route::post('characters/{character}/call-sessions', [CallSessionController::class, 'store'])->name('characters.call-sessions.store');

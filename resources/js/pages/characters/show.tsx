@@ -1,12 +1,21 @@
-import { Head, Link, usePoll } from '@inertiajs/react';
+import { Form, Head, Link, usePoll } from '@inertiajs/react';
 import { AvatarCall } from '@runwayml/avatars-react';
-import { Phone, RotateCcw, Sparkles } from 'lucide-react';
+import { Phone, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import CallSessionController from '@/actions/App/Http/Controllers/CallSessionController';
 import CharacterController from '@/actions/App/Http/Controllers/CharacterController';
 import Heading from '@/components/heading';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { index, show } from '@/routes/characters';
@@ -152,6 +161,42 @@ function CallSection({ character }: { character: CharacterData }) {
     );
 }
 
+function DeleteCharacter({ character }: { character: CharacterData }) {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="sm">
+                    <Trash2 />
+                    Delete
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogTitle>Delete {character.name}?</DialogTitle>
+                <DialogDescription>
+                    This removes the character, their portrait, and the uploaded
+                    drawing for good.
+                </DialogDescription>
+                <Form {...CharacterController.destroy.form(character.id)}>
+                    {({ processing }) => (
+                        <DialogFooter className="gap-2">
+                            <DialogClose asChild>
+                                <Button variant="secondary">Cancel</Button>
+                            </DialogClose>
+                            <Button
+                                variant="destructive"
+                                disabled={processing}
+                                asChild
+                            >
+                                <button type="submit">Delete character</button>
+                            </Button>
+                        </DialogFooter>
+                    )}
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function CharactersShow({
     character,
 }: {
@@ -176,10 +221,13 @@ export default function CharactersShow({
             <Head title={character.name} />
 
             <div className="flex flex-col gap-6 p-4">
-                <Heading
-                    title={character.name}
-                    description={character.personality}
-                />
+                <div className="flex items-start justify-between gap-4">
+                    <Heading
+                        title={character.name}
+                        description={character.personality}
+                    />
+                    <DeleteCharacter character={character} />
+                </div>
 
                 <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
                     <div className="space-y-4">

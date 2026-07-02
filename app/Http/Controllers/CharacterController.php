@@ -7,9 +7,11 @@ use App\Http\Requests\StoreCharacterRequest;
 use App\Http\Resources\CharacterResource;
 use App\Jobs\ProcessCharacter;
 use App\Models\Character;
+use App\Services\Runway;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -45,6 +47,21 @@ class CharacterController extends Controller
         ProcessCharacter::dispatch($character);
 
         return to_route('characters.show', $character);
+    }
+
+    public function destroy(Request $request, Character $character, Runway $runway): RedirectResponse
+    {
+        Gate::allowIf($character->user_id === $request->user()->id);
+
+        if ($character->runway_avatar_id !== null) {
+            rescue(fn () => $runway->deleteAvatar($character->runway_avatar_id));
+        }
+
+        Storage::delete(array_filter([$character->drawing_path, $character->image_path]));
+
+        $character->delete();
+
+        return to_route('dashboard');
     }
 
     public function retry(Request $request, Character $character): RedirectResponse

@@ -15,9 +15,10 @@ class Runway
     public function createImageTask(string $promptText, array $referenceImages = []): string
     {
         $payload = [
-            'model' => 'gen4_image',
+            'model' => 'gpt_image_2',
             'promptText' => $promptText,
-            'ratio' => '1080:1080',
+            'ratio' => '1920:1920',
+            'quality' => 'high',
         ];
 
         if ($referenceImages !== []) {
@@ -61,6 +62,14 @@ class Runway
     public function getAvatar(string $avatarId): array
     {
         return $this->request()->get("/v1/avatars/{$avatarId}")->throw()->json();
+    }
+
+    /**
+     * Delete an avatar from Runway.
+     */
+    public function deleteAvatar(string $avatarId): void
+    {
+        $this->request()->delete("/v1/avatars/{$avatarId}")->throw();
     }
 
     /**

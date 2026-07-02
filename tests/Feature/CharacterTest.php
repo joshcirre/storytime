@@ -5,6 +5,7 @@ use App\Jobs\ProcessCharacter;
 use App\Models\Character;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -95,6 +96,40 @@ test('only failed characters can be retried', function () {
     $this->actingAs($character->user)
         ->post(route('characters.retry', $character))
         ->assertConflict();
+});
+
+test('users can delete a character', function () {
+    Storage::fake('public');
+    Storage::disk('public')->put('drawings/d.png', 'drawing');
+    Storage::disk('public')->put('characters/c.png', 'portrait');
+
+    $character = Character::factory()->ready()->create([
+        'drawing_path' => 'drawings/d.png',
+        'image_path' => 'characters/c.png',
+        'runway_avatar_id' => 'avatar-9',
+    ]);
+
+    Http::fake(['api.dev.runwayml.com/v1/avatars/avatar-9' => Http::response(null, 204)]);
+
+    $this->actingAs($character->user)
+        ->delete(route('characters.destroy', $character))
+        ->assertRedirect(route('dashboard'));
+
+    expect(Character::find($character->id))->toBeNull();
+    Storage::disk('public')->assertMissing('drawings/d.png');
+    Storage::disk('public')->assertMissing('characters/c.png');
+    Http::assertSent(fn ($request) => $request->method() === 'DELETE'
+        && $request->url() === 'https://api.dev.runwayml.com/v1/avatars/avatar-9');
+});
+
+test('users cannot delete characters belonging to others', function () {
+    $character = Character::factory()->ready()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->delete(route('characters.destroy', $character))
+        ->assertForbidden();
+
+    expect(Character::find($character->id))->not->toBeNull();
 });
 
 test('users cannot view characters belonging to others', function () {
