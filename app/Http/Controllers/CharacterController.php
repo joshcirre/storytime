@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\CharacterStatus;
 use App\Http\Requests\StoreCharacterRequest;
+use App\Http\Resources\CharacterResource;
 use App\Jobs\ProcessCharacter;
 use App\Models\Character;
 use Illuminate\Http\RedirectResponse;
@@ -17,8 +18,9 @@ class CharacterController extends Controller
     public function index(Request $request): Response
     {
         return Inertia::render('characters/index', [
-            'characters' => $request->user()->characters()->latest()->get()
-                ->map(fn (Character $character): array => $this->presentCharacter($character)),
+            'characters' => CharacterResource::collection(
+                $request->user()->characters()->latest()->get(),
+            )->resolve(),
         ]);
     }
 
@@ -66,25 +68,7 @@ class CharacterController extends Controller
         Gate::allowIf($character->user_id === $request->user()->id);
 
         return Inertia::render('characters/show', [
-            'character' => $this->presentCharacter($character),
+            'character' => CharacterResource::make($character)->resolve(),
         ]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    protected function presentCharacter(Character $character): array
-    {
-        return [
-            'id' => $character->id,
-            'name' => $character->name,
-            'personality' => $character->personality,
-            'status' => $character->status->value,
-            'isProcessing' => $character->status->isProcessing(),
-            'failureReason' => $character->failure_reason,
-            'imageUrl' => $character->imageUrl(),
-            'drawingUrl' => $character->drawingUrl(),
-            'runwayAvatarId' => $character->runway_avatar_id,
-        ];
     }
 }

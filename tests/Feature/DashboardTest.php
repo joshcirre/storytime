@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Character;
 use App\Models\User;
 
 test('guests are redirected to the login page', function () {
@@ -9,8 +10,16 @@ test('guests are redirected to the login page', function () {
 
 test('authenticated users can visit the dashboard', function () {
     $user = User::factory()->create();
-    $this->actingAs($user);
+    Character::factory()->ready()->for($user)->create();
+    Character::factory()->for($user)->create();
 
-    $response = $this->get(route('dashboard'));
-    $response->assertOk();
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('dashboard')
+            ->has('characters', 2)
+            ->where('stats.characters', 2)
+            ->where('stats.ready', 1)
+            ->where('stats.calls', 0));
 });

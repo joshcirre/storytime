@@ -2,12 +2,13 @@
 
 use App\Http\Controllers\CallSessionController;
 use App\Http\Controllers\CharacterController;
+use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
 
     Route::resource('characters', CharacterController::class)->only(['index', 'create', 'store', 'show']);
     Route::post('characters/{character}/retry', [CharacterController::class, 'retry'])->name('characters.retry');

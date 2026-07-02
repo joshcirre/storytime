@@ -28,3 +28,4 @@ yarn-error.log
 /.vscode
 /.zed
 relay/node_modules
+.gstack/
