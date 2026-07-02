@@ -67,12 +67,25 @@ class Character extends Model
 
     public function imageUrl(): ?string
     {
-        return $this->image_path ? Storage::disk('public')->url($this->image_path) : null;
+        return $this->image_path ? $this->storageUrl($this->image_path) : null;
     }
 
     public function drawingUrl(): ?string
     {
-        return $this->drawing_path ? Storage::disk('public')->url($this->drawing_path) : null;
+        return $this->drawing_path ? $this->storageUrl($this->drawing_path) : null;
+    }
+
+    /**
+     * Cloud buckets (R2) are private, so signed URLs are used when the
+     * default disk supports them; the local public disk falls back to url().
+     */
+    protected function storageUrl(string $path): string
+    {
+        $disk = Storage::disk();
+
+        return $disk->providesTemporaryUrls()
+            ? $disk->temporaryUrl($path, now()->addHour())
+            : $disk->url($path);
     }
 
     public function markFailed(string $reason): void

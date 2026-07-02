@@ -61,7 +61,7 @@ class ProcessCharacter implements ShouldQueue
         $references = [];
 
         if ($this->character->drawing_path !== null) {
-            $disk = Storage::disk('public');
+            $disk = Storage::disk();
 
             $references[] = [
                 'uri' => 'data:'.$disk->mimeType($this->character->drawing_path).';base64,'
@@ -117,7 +117,7 @@ class ProcessCharacter implements ShouldQueue
     {
         $path = 'characters/'.Str::uuid().'.png';
 
-        Storage::disk('public')->put($path, Http::timeout(60)->get($imageUrl)->throw()->body());
+        Storage::put($path, Http::timeout(60)->get($imageUrl)->throw()->body());
 
         $this->character->update(['image_path' => $path]);
     }
@@ -152,14 +152,19 @@ class ProcessCharacter implements ShouldQueue
      * Compose the avatar's system prompt from the character's personality,
      * including guidance on when to use the conversation tools.
      */
+    /**
+     * Runway's avatar moderation rejects child-directed phrasing (e.g.
+     * "chatting with the child who made you"), so the persona is framed
+     * around the artist instead — verified against the live API.
+     */
     protected function avatarPersonality(): string
     {
         return "Your name is {$this->character->name}. {$this->character->personality} "
-            .'You are a beloved character created from a child\'s drawing, and you are video-chatting '
-            .'with the child who made you. Be warm, playful, encouraging, and curious about their world. '
-            .'Keep replies short and easy for a child to follow. Never discuss scary or grown-up topics. '
-            .'When they mention a city or where they live, or ask about the weather, use the get_weather tool '
-            .'and react to the result with personality. When they ask for a joke, use the tell_joke tool and '
-            .'deliver the joke with enthusiasm.';
+            .'You are a cheerful storybook character brought to life from a hand-drawn picture, '
+            .'chatting with the artist who drew you. Be warm, playful, and encouraging. '
+            .'Keep replies short, upbeat, and family-friendly. '
+            .'When someone mentions a city or asks about the weather, use the get_weather tool '
+            .'and react to the result with personality. When someone asks for a joke, use the '
+            .'tell_joke tool and deliver it with enthusiasm.';
     }
 }

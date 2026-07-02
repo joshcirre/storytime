@@ -1,5 +1,6 @@
 <?php
 
+use App\CharacterStatus;
 use App\Jobs\ProcessCharacter;
 use App\Models\Character;
 use App\Models\User;
@@ -71,6 +72,29 @@ test('a drawing or a prompt is required', function () {
         'personality' => 'A brave dragon.',
         'voice' => 'ruby',
     ])->assertSessionHasErrors(['drawing', 'prompt']);
+});
+
+test('failed characters can be retried', function () {
+    Queue::fake();
+    $character = Character::factory()->failed()->create();
+
+    $this->actingAs($character->user)
+        ->post(route('characters.retry', $character))
+        ->assertRedirect(route('characters.show', $character));
+
+    expect($character->refresh())
+        ->status->toBe(CharacterStatus::Pending)
+        ->failure_reason->toBeNull();
+
+    Queue::assertPushed(ProcessCharacter::class);
+});
+
+test('only failed characters can be retried', function () {
+    $character = Character::factory()->ready()->create();
+
+    $this->actingAs($character->user)
+        ->post(route('characters.retry', $character))
+        ->assertConflict();
 });
 
 test('users cannot view characters belonging to others', function () {

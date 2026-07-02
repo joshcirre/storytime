@@ -1,8 +1,9 @@
-import { Head, usePoll } from '@inertiajs/react';
+import { Head, Link, usePoll } from '@inertiajs/react';
 import { AvatarCall } from '@runwayml/avatars-react';
-import { Phone, Sparkles } from 'lucide-react';
+import { Phone, RotateCcw, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import CallSessionController from '@/actions/App/Http/Controllers/CallSessionController';
+import CharacterController from '@/actions/App/Http/Controllers/CharacterController';
 import Heading from '@/components/heading';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -228,15 +229,29 @@ export default function CharactersShow({
                         )}
 
                         {character.status === 'failed' && (
-                            <Alert variant="destructive">
-                                <AlertTitle>
-                                    We couldn't bring this character to life
-                                </AlertTitle>
-                                <AlertDescription>
-                                    {character.failureReason ??
-                                        'Something went wrong. Try creating them again.'}
-                                </AlertDescription>
-                            </Alert>
+                            <div className="space-y-4">
+                                <Alert variant="destructive">
+                                    <AlertTitle>
+                                        We couldn't bring this character to life
+                                    </AlertTitle>
+                                    <AlertDescription>
+                                        {character.failureReason ??
+                                            'Something went wrong. Try creating them again.'}
+                                    </AlertDescription>
+                                </Alert>
+                                <Button asChild variant="secondary">
+                                    <Link
+                                        href={CharacterController.retry.url(
+                                            character.id,
+                                        )}
+                                        method="post"
+                                        as="button"
+                                    >
+                                        <RotateCcw />
+                                        Try again
+                                    </Link>
+                                </Button>
+                            </div>
                         )}
 
                         {character.status === 'ready' && (
