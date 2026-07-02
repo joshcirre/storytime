@@ -74,6 +74,25 @@ test('it sends the drawing as a data uri reference image', function () {
     });
 });
 
+test('it fails cleanly when the drawing file is missing', function () {
+    Storage::fake('public');
+    Sleep::fake();
+
+    $character = Character::factory()->fromDrawing()->create(['drawing_path' => 'drawings/gone.png']);
+
+    $job = new ProcessCharacter($character);
+
+    try {
+        $job->handle(app(Runway::class));
+    } catch (RuntimeException $exception) {
+        $job->failed($exception);
+    }
+
+    expect($character->refresh())
+        ->status->toBe(CharacterStatus::Failed)
+        ->failure_reason->toContain('drawing file is missing');
+});
+
 test('it marks the character failed when generation fails', function () {
     Storage::fake('public');
     Sleep::fake();

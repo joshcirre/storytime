@@ -63,6 +63,10 @@ class ProcessCharacter implements ShouldQueue
         if ($this->character->drawing_path !== null) {
             $disk = Storage::disk();
 
+            if (! $disk->exists($this->character->drawing_path)) {
+                throw new RuntimeException('The original drawing file is missing. Please create the character again.');
+            }
+
             $references[] = [
                 'uri' => 'data:'.$disk->mimeType($this->character->drawing_path).';base64,'
                     .base64_encode($disk->get($this->character->drawing_path)),
