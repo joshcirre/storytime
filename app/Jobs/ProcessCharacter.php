@@ -127,34 +127,44 @@ class ProcessCharacter implements ShouldQueue
         $this->character->update(['image_path' => $path]);
     }
 
+    /**
+     * Runway's text moderation is non-deterministic: byte-identical payloads
+     * have been observed failing and then passing minutes apart. Retry with
+     * the full personality before falling back to the base persona so a
+     * flaky rejection doesn't strip the character's custom flavor.
+     */
     protected function createAvatar(Runway $runway, string $referenceImageUrl): string
     {
-        $avatar = $runway->createAvatar(
-            $this->character->name,
-            $this->avatarPersonality(),
-            $referenceImageUrl,
-            $this->character->voice,
-        );
+        $attempts = [true, true, false];
+        $lastAttempt = array_key_last($attempts);
 
-        try {
-            return $this->waitForAvatar($runway, $avatar);
-        } catch (RuntimeException $exception) {
-            if (! str_contains($exception->getMessage(), 'text cannot be used')) {
-                throw $exception;
-            }
-
-            // The user-written personality tripped Runway's text moderation
-            // even in quoted form, so keep the character alive with the base
-            // persona rather than failing the whole pipeline.
+        foreach ($attempts as $index => $includeUserPersonality) {
             $avatar = $runway->createAvatar(
                 $this->character->name,
-                $this->avatarPersonality(includeUserPersonality: false),
+                $this->avatarPersonality($includeUserPersonality),
                 $referenceImageUrl,
                 $this->character->voice,
             );
 
-            return $this->waitForAvatar($runway, $avatar);
+            try {
+                return $this->waitForAvatar($runway, $avatar);
+            } catch (RuntimeException $exception) {
+                if (! str_contains($exception->getMessage(), 'text cannot be used')) {
+                    throw $exception;
+                }
+
+                if ($index === $lastAttempt) {
+                    throw new RuntimeException(
+                        "Runway's safety filter kept rejecting this character's description. "
+                        .'Try rewording the personality and retry.',
+                    );
+                }
+
+                Sleep::for(10)->seconds();
+            }
         }
+
+        throw new RuntimeException('Avatar creation failed.');
     }
 
     /**

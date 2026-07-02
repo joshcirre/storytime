@@ -94,6 +94,11 @@ test('it retries without the user personality when moderation rejects the text',
                 'status' => 'FAILED',
                 'failureReason' => 'This text cannot be used for an avatar. Please update the personality or start script.',
             ])
+            ->push([
+                'id' => 'avatar-rejected-again',
+                'status' => 'FAILED',
+                'failureReason' => 'This text cannot be used for an avatar. Please update the personality or start script.',
+            ])
             ->push(['id' => 'avatar-clean', 'status' => 'READY']),
     ]);
 
@@ -103,7 +108,7 @@ test('it retries without the user personality when moderation rejects the text',
         ->status->toBe(CharacterStatus::Ready)
         ->runway_avatar_id->toBe('avatar-clean');
 
-    Http::assertSentCount(5);
+    Http::assertSentCount(6);
     Http::assertSent(function ($request) {
         return $request->url() === 'https://api.dev.runwayml.com/v1/avatars'
             && ! str_contains($request['personality'], 'cute fairy');
