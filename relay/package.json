@@ -1,0 +1,9 @@
+{
+    "name": "storytime-relay",
+    "private": true,
+    "type": "module",
+    "description": "Forwards Runway avatar tool calls to the Laravel app. Installed separately at build time because the root node_modules is not part of the runtime artifact.",
+    "dependencies": {
+        "@runwayml/avatars-node-rpc": "^0.1.0"
+    }
+}
