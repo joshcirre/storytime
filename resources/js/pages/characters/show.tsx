@@ -269,8 +269,9 @@ export default function CharactersShow({
                                             'Working on it...'}
                                     </p>
                                     <p className="text-sm text-muted-foreground">
-                                        This usually takes a minute or two. The
-                                        page updates on its own.
+                                        The 3D render takes a few minutes. It
+                                        keeps working in the background, so
+                                        you can leave this page and come back.
                                     </p>
                                 </div>
                             </div>
