@@ -91,6 +91,23 @@ test('the weather tool returns a speakable error for unknown cities', function (
         ->assertJsonPath('error', "I couldn't find a city called Nowhereville.");
 });
 
+test('stale call sessions are cancelled at Runway and marked ended', function () {
+    $stale = CallSession::factory()->claimed()->create(['created_at' => now()->subMinutes(20)]);
+    $fresh = CallSession::factory()->create(['created_at' => now()->subMinutes(2)]);
+
+    Http::fake([
+        'api.dev.runwayml.com/v1/realtime_sessions/*' => Http::response(null, 204),
+    ]);
+
+    $this->artisan('app:cleanup-stale-call-sessions')->assertSuccessful();
+
+    expect($stale->refresh()->status)->toBe('ended');
+    expect($fresh->refresh()->status)->toBe('pending');
+
+    Http::assertSent(fn ($request) => $request->method() === 'DELETE'
+        && str_contains($request->url(), $stale->runway_session_id));
+});
+
 test('the joke tool returns a knock-knock joke', function () {
     Http::fake([
         'official-joke-api.appspot.com/*' => Http::response([

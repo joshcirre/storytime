@@ -110,6 +110,14 @@ class Runway
     }
 
     /**
+     * Cancel an active realtime session.
+     */
+    public function cancelRealtimeSession(string $sessionId): void
+    {
+        $this->request()->delete("/v1/realtime_sessions/{$sessionId}")->throw();
+    }
+
+    /**
      * Rate limits (429) and transient server errors are retried with backoff
      * so a busy moment doesn't fail a multi-minute character pipeline.
      */
