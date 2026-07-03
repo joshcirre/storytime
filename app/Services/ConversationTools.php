@@ -17,7 +17,7 @@ class ConversationTools
             [
                 'type' => 'backend_rpc',
                 'name' => 'get_weather',
-                'description' => 'Look up the current weather for a city. Use when the child mentions a city, says where they live, or asks about the weather.',
+                'description' => 'Get the real, current weather for a city. Always call this whenever the user mentions the weather, the temperature, being hot or cold, a city, or where they live — never guess or make up weather. If you do not know which city they mean, ask them first, then call this tool.',
                 'timeoutSeconds' => 8,
                 'parameters' => [
                     [
@@ -31,7 +31,7 @@ class ConversationTools
             [
                 'type' => 'backend_rpc',
                 'name' => 'tell_joke',
-                'description' => 'Fetch a family-friendly joke to tell. Use when the child asks for a joke or seems like they need cheering up.',
+                'description' => 'Fetch a knock-knock joke to perform. Always call this when the user asks for a joke — never invent your own. Returns a setup and a punchline to perform as a back-and-forth knock-knock joke.',
                 'timeoutSeconds' => 8,
                 'parameters' => [],
             ],

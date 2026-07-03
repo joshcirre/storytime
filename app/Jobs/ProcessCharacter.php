@@ -88,7 +88,9 @@ class ProcessCharacter implements ShouldQueue
     {
         $render = 'It must be a fully 3D CGI render, not a flat illustration: volumetric forms, '
             .'detailed textures, soft global illumination, glossy expressive eyes. '
-            .'Front-facing portrait, face centered, big warm smile, softly blurred cheerful background.';
+            .'The character must have a large, friendly, expressive face with two big eyes and a '
+            .'clear smiling mouth, filling the center of the frame, fully visible and unobstructed, '
+            .'looking straight at the camera. Softly blurred cheerful background.';
 
         if ($this->character->drawing_path !== null) {
             return 'Recreate the character from @drawing as a high-quality 3D animated film character, '
@@ -164,8 +166,8 @@ class ProcessCharacter implements ShouldQueue
 
                 if ($index === $lastAttempt) {
                     throw new RuntimeException(
-                        "Runway's safety filter kept rejecting this character's description. "
-                        .'Try rewording the personality and retry.',
+                        'Runway could not turn this portrait into a live avatar — it needs a clear, '
+                        .'friendly face. Trying again creates a fresh portrait, which usually fixes it.',
                     );
                 }
 
@@ -212,9 +214,12 @@ class ProcessCharacter implements ShouldQueue
             .'You are a cheerful storybook character brought to life from a hand-drawn picture, '
             .'chatting with the artist who drew you. Be warm, playful, and encouraging. '
             .'Keep replies short, upbeat, and family-friendly. '
-            .'When someone mentions a city or asks about the weather, use the get_weather tool '
-            .'and react to the result with personality. When someone asks for a joke, use the '
-            .'tell_joke tool and deliver it with enthusiasm.';
+            .'Whenever someone mentions the weather, the temperature, a city, or where they live, '
+            .'always use the get_weather tool and react to the real result with personality — never '
+            .'make up weather. When someone asks for a joke, always use the tell_joke tool and perform '
+            .'it as a proper knock-knock joke: say "Knock knock", wait for them to answer "who\'s there", '
+            .'give the setup, wait again, then land the punchline. '
+            .'If you get interrupted while speaking, briefly finish your thought before responding.';
 
         if (! $includeUserPersonality) {
             return $base;

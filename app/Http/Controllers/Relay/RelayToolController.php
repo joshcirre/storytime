@@ -53,18 +53,21 @@ class RelayToolController extends Controller
     }
 
     /**
-     * A family-friendly joke via icanhazdadjoke.
+     * A knock-knock joke via the Official Joke API, returned as a setup and
+     * punchline so the avatar can perform the back-and-forth.
      */
     public function joke(): JsonResponse
     {
         $joke = Http::timeout(5)
             ->acceptJson()
-            ->withHeader('User-Agent', config('app.name').' (character demo)')
-            ->get('https://icanhazdadjoke.com/')
+            ->get('https://official-joke-api.appspot.com/jokes/knock-knock/random')
             ->throw()
-            ->json('joke');
+            ->json('0');
 
-        return response()->json(['joke' => $joke]);
+        return response()->json([
+            'setup' => $joke['setup'],
+            'punchline' => $joke['punchline'],
+        ]);
     }
 
     /**

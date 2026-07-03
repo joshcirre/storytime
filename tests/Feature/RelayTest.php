@@ -91,12 +91,17 @@ test('the weather tool returns a speakable error for unknown cities', function (
         ->assertJsonPath('error', "I couldn't find a city called Nowhereville.");
 });
 
-test('the joke tool returns a joke', function () {
+test('the joke tool returns a knock-knock joke', function () {
     Http::fake([
-        'icanhazdadjoke.com/*' => Http::response(['joke' => 'Why did the dragon cross the road?']),
+        'official-joke-api.appspot.com/*' => Http::response([
+            ['type' => 'knock-knock', 'setup' => "Knock knock. Who's there? Hatch. Hatch who?", 'punchline' => 'Bless you!', 'id' => 60],
+        ]),
     ]);
 
     $this->postJson(route('relay.tools.joke'), [], relayHeaders())
         ->assertOk()
-        ->assertJson(['joke' => 'Why did the dragon cross the road?']);
+        ->assertJson([
+            'setup' => "Knock knock. Who's there? Hatch. Hatch who?",
+            'punchline' => 'Bless you!',
+        ]);
 });
