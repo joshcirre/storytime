@@ -21,7 +21,17 @@ class ProcessCharacter implements ShouldQueue
 
     public int $timeout = 900;
 
-    public int $tries = 1;
+    /**
+     * Runway's avatar moderation rejects and accepts byte-identical payloads
+     * in windows lasting minutes, so the whole job retries on a long backoff
+     * to land in a different window. Retries reuse the stored portrait, so
+     * they skip the slow generation step.
+     *
+     * @var array<int, int>
+     */
+    public array $backoff = [300, 900];
+
+    public int $tries = 3;
 
     /**
      * Create a new job instance.
