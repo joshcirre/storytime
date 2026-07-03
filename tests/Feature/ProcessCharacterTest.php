@@ -115,6 +115,45 @@ test('it retries without the user personality when moderation rejects the text',
     });
 });
 
+test('it rides out rate limits with retries', function () {
+    Storage::fake('public');
+    Sleep::fake();
+
+    Storage::disk('public')->put('characters/existing.png', 'portrait-bytes');
+    $character = Character::factory()->create(['image_path' => 'characters/existing.png']);
+
+    Http::fake([
+        'api.dev.runwayml.com/v1/avatars' => Http::sequence()
+            ->push(['error' => 'Too many requests.'], 429)
+            ->push(['id' => 'avatar-1', 'status' => 'READY']),
+    ]);
+
+    (new ProcessCharacter($character))->handle(app(Runway::class));
+
+    expect($character->refresh())->status->toBe(CharacterStatus::Ready);
+});
+
+test('it reuses a stored portrait instead of regenerating', function () {
+    Storage::fake('public');
+    Sleep::fake();
+
+    Storage::disk('public')->put('characters/existing.png', 'portrait-bytes');
+    $character = Character::factory()->create(['image_path' => 'characters/existing.png']);
+
+    Http::fake([
+        'api.dev.runwayml.com/v1/avatars' => Http::response(['id' => 'avatar-1', 'status' => 'READY']),
+    ]);
+
+    (new ProcessCharacter($character))->handle(app(Runway::class));
+
+    expect($character->refresh())
+        ->status->toBe(CharacterStatus::Ready)
+        ->runway_avatar_id->toBe('avatar-1');
+
+    Http::assertSentCount(1);
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), 'text_to_image'));
+});
+
 test('it fails cleanly when the drawing file is missing', function () {
     Storage::fake('public');
     Sleep::fake();

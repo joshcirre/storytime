@@ -29,14 +29,22 @@ class ProcessCharacter implements ShouldQueue
 
     /**
      * Execute the job: generate the character portrait with Runway
-     * text-to-image, then create a conversational avatar from it.
+     * text-to-image, then create a conversational avatar from it. A stored
+     * portrait is reused so retries and interrupted runs skip the slow,
+     * credit-spending generation step.
      */
     public function handle(Runway $runway): void
     {
-        $this->character->update(['status' => CharacterStatus::GeneratingImage]);
+        $this->character->refresh();
 
-        $imageUrl = $this->generatePortrait($runway);
-        $this->storePortrait($imageUrl);
+        $imageUrl = $this->existingPortraitUrl();
+
+        if ($imageUrl === null) {
+            $this->character->update(['status' => CharacterStatus::GeneratingImage]);
+
+            $imageUrl = $this->generatePortrait($runway);
+            $this->storePortrait($imageUrl);
+        }
 
         $this->character->update(['status' => CharacterStatus::CreatingAvatar]);
 
@@ -46,6 +54,24 @@ class ProcessCharacter implements ShouldQueue
             'runway_avatar_id' => $avatarId,
             'status' => CharacterStatus::Ready,
         ]);
+    }
+
+    /**
+     * An HTTPS URL for the already-stored portrait, if one exists.
+     */
+    protected function existingPortraitUrl(): ?string
+    {
+        $path = $this->character->image_path;
+
+        if ($path === null || ! Storage::exists($path)) {
+            return null;
+        }
+
+        $disk = Storage::disk();
+
+        return $disk->providesTemporaryUrls()
+            ? $disk->temporaryUrl($path, now()->addHour())
+            : $disk->url($path);
     }
 
     public function failed(?Throwable $exception): void
@@ -86,11 +112,13 @@ class ProcessCharacter implements ShouldQueue
      */
     protected function imagePrompt(): string
     {
-        $render = 'It must be a fully 3D CGI render, not a flat illustration: volumetric forms, '
-            .'detailed textures, soft global illumination, glossy expressive eyes. '
-            .'The character must have a large, friendly, expressive face with two big eyes and a '
-            .'clear smiling mouth, filling the center of the frame, fully visible and unobstructed, '
-            .'looking straight at the camera. Softly blurred cheerful background.';
+        $render = 'Keep the whole character and composition — full body is fine — but give the '
+            .'character stylized big-head proportions: the head is large and prominent, and the '
+            .'front-facing face with two big expressive eyes and a clear smiling mouth takes up a '
+            .'large part of the frame, fully visible, unobstructed, looking straight at the camera. '
+            .'It must be a fully 3D CGI render, not a flat illustration: volumetric forms, detailed '
+            .'textures, soft global illumination, glossy expressive eyes. '
+            .'Softly blurred cheerful background.';
 
         if ($this->character->drawing_path !== null) {
             return 'Recreate the character from @drawing as a high-quality 3D animated film character, '

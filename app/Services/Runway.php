@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Throwable;
 
 class Runway
 {
@@ -106,12 +109,22 @@ class Runway
         return $this->request()->get("/v1/realtime_sessions/{$sessionId}")->throw()->json();
     }
 
+    /**
+     * Rate limits (429) and transient server errors are retried with backoff
+     * so a busy moment doesn't fail a multi-minute character pipeline.
+     */
     protected function request(): PendingRequest
     {
         return Http::baseUrl(config('services.runway.base_url'))
             ->withToken(config('services.runway.secret'))
             ->withHeader('X-Runway-Version', config('services.runway.version'))
             ->acceptJson()
-            ->timeout(30);
+            ->timeout(30)
+            ->retry(
+                [2000, 5000, 15000, 30000],
+                when: fn (Throwable $exception): bool => $exception instanceof ConnectionException
+                    || ($exception instanceof RequestException
+                        && in_array($exception->response->status(), [429, 500, 502, 503, 504])),
+            );
     }
 }

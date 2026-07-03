@@ -90,6 +90,30 @@ test('failed characters can be retried', function () {
     Queue::assertPushed(ProcessCharacter::class);
 });
 
+test('retrying a rejected portrait clears the stored image', function () {
+    Queue::fake();
+    $character = Character::factory()->failed()->create([
+        'image_path' => 'characters/bad.png',
+        'failure_reason' => 'Runway could not turn this portrait into a live avatar.',
+    ]);
+
+    $this->actingAs($character->user)->post(route('characters.retry', $character));
+
+    expect($character->refresh()->image_path)->toBeNull();
+});
+
+test('retrying other failures keeps the stored portrait', function () {
+    Queue::fake();
+    $character = Character::factory()->failed()->create([
+        'image_path' => 'characters/good.png',
+        'failure_reason' => 'Timed out waiting for avatar creation.',
+    ]);
+
+    $this->actingAs($character->user)->post(route('characters.retry', $character));
+
+    expect($character->refresh()->image_path)->toBe('characters/good.png');
+});
+
 test('only failed characters can be retried', function () {
     $character = Character::factory()->ready()->create();
 
