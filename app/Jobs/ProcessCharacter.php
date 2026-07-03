@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\CharacterStatus;
+use App\Exceptions\PortraitRejectedException;
 use App\Models\Character;
 use App\Services\Runway;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -48,7 +49,21 @@ class ProcessCharacter implements ShouldQueue
 
         $this->character->update(['status' => CharacterStatus::CreatingAvatar]);
 
-        $avatarId = $this->createAvatar($runway, $imageUrl);
+        try {
+            $avatarId = $this->createAvatar($runway, $imageUrl);
+        } catch (PortraitRejectedException) {
+            // Runway's avatar service wants a face that dominates the frame.
+            // Full-body portraits sometimes fail that bar, so fall back to a
+            // close-up composition, which has always passed.
+            $this->character->update(['status' => CharacterStatus::GeneratingImage]);
+
+            $imageUrl = $this->generatePortrait($runway, closeUp: true);
+            $this->storePortrait($imageUrl);
+
+            $this->character->update(['status' => CharacterStatus::CreatingAvatar]);
+
+            $avatarId = $this->createAvatar($runway, $imageUrl);
+        }
 
         $this->character->update([
             'runway_avatar_id' => $avatarId,
@@ -82,7 +97,7 @@ class ProcessCharacter implements ShouldQueue
     /**
      * Run the text-to-image task and return the Runway-hosted output URL.
      */
-    protected function generatePortrait(Runway $runway): string
+    protected function generatePortrait(Runway $runway, bool $closeUp = false): string
     {
         $references = [];
 
@@ -100,7 +115,7 @@ class ProcessCharacter implements ShouldQueue
             ];
         }
 
-        $taskId = $runway->createImageTask($this->imagePrompt(), $references);
+        $taskId = $runway->createImageTask($this->imagePrompt($closeUp), $references);
 
         return $this->waitForImageTask($runway, $taskId);
     }
@@ -110,14 +125,19 @@ class ProcessCharacter implements ShouldQueue
      * drawing's exact design (stick limbs, scribbles and all) while changing
      * the medium to a 3D film render, instead of redesigning the character.
      */
-    protected function imagePrompt(): string
+    protected function imagePrompt(bool $closeUp = false): string
     {
-        $render = 'Keep the whole character and composition — full body is fine — but give the '
-            .'character stylized big-head proportions: the head is large and prominent, and the '
-            .'front-facing face with two big expressive eyes and a clear smiling mouth takes up a '
-            .'large part of the frame, fully visible, unobstructed, looking straight at the camera. '
-            .'It must be a fully 3D CGI render, not a flat illustration: volumetric forms, detailed '
-            .'textures, soft global illumination, glossy expressive eyes. '
+        $render = $closeUp
+            ? 'A head-and-shoulders close-up portrait: the character face is large, front-facing, '
+                .'and fills most of the frame, with two big expressive eyes and a clear smiling '
+                .'mouth, fully visible and unobstructed, looking straight at the camera. '
+            : 'Keep the whole character and composition — full body is fine — but give the '
+                .'character stylized big-head proportions: the head is large and prominent, and the '
+                .'front-facing face with two big expressive eyes and a clear smiling mouth takes up a '
+                .'large part of the frame, fully visible, unobstructed, looking straight at the camera. ';
+
+        $render .= 'It must be a fully 3D CGI render, not a flat illustration: volumetric forms, '
+            .'detailed textures, soft global illumination, glossy expressive eyes. '
             .'Softly blurred cheerful background.';
 
         if ($this->character->drawing_path !== null) {
@@ -167,14 +187,14 @@ class ProcessCharacter implements ShouldQueue
     }
 
     /**
-     * Runway's text moderation is non-deterministic: byte-identical payloads
-     * have been observed failing and then passing minutes apart. Retry with
-     * the full personality before falling back to the base persona so a
-     * flaky rejection doesn't strip the character's custom flavor.
+     * Runway rejects avatars for opaque reasons (the "text cannot be used"
+     * error also fires for image problems), so retry with the full
+     * personality, then the base persona, before declaring the portrait
+     * rejected — which triggers the close-up regeneration in handle().
      */
     protected function createAvatar(Runway $runway, string $referenceImageUrl): string
     {
-        $attempts = [true, true, false];
+        $attempts = [true, false];
         $lastAttempt = array_key_last($attempts);
 
         foreach ($attempts as $index => $includeUserPersonality) {
@@ -193,10 +213,7 @@ class ProcessCharacter implements ShouldQueue
                 }
 
                 if ($index === $lastAttempt) {
-                    throw new RuntimeException(
-                        'Runway could not turn this portrait into a live avatar — it needs a clear, '
-                        .'friendly face. Trying again creates a fresh portrait, which usually fixes it.',
-                    );
+                    throw new PortraitRejectedException;
                 }
 
                 Sleep::for(10)->seconds();

@@ -73,11 +73,6 @@ class CharacterController extends Controller
         $character->update([
             'status' => CharacterStatus::Pending,
             'failure_reason' => null,
-            // A portrait Runway rejected must be regenerated; other failures
-            // reuse the stored portrait so the retry is fast and free.
-            'image_path' => str_contains((string) $character->failure_reason, 'portrait')
-                ? null
-                : $character->image_path,
         ]);
 
         ProcessCharacter::dispatch($character);
