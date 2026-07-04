@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\CharacterStatus;
 use App\Exceptions\PortraitRejectedException;
 use App\Models\Character;
+use App\Services\CharacterPersona;
 use App\Services\Runway;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -255,32 +256,8 @@ class ProcessCharacter implements ShouldQueue
         throw new RuntimeException('Timed out waiting for avatar creation.');
     }
 
-    /**
-     * Compose the avatar's system prompt, including guidance on when to use
-     * the conversation tools. Runway's avatar moderation rejects
-     * child-directed phrasing and some innocuous phrase combinations in the
-     * user's own words ("cute ... playing with friends"), so the persona is
-     * framed around the artist and the user's personality is embedded as the
-     * artist's quoted description — both verified against the live API.
-     */
     protected function avatarPersonality(bool $includeUserPersonality = true): string
     {
-        $base = "Your name is {$this->character->name}. "
-            .'You are a cheerful storybook character brought to life from a hand-drawn picture, '
-            .'chatting with the artist who drew you. Be warm, playful, and encouraging. '
-            .'Keep replies short, upbeat, and family-friendly. '
-            .'Whenever someone mentions the weather, the temperature, a city, or where they live, '
-            .'always use the get_weather tool and react to the real result with personality — never '
-            .'make up weather. When someone asks for a joke, always use the tell_joke tool and perform '
-            .'it as a proper knock-knock joke: say "Knock knock", wait for them to answer "who\'s there", '
-            .'give the setup, wait again, then land the punchline. '
-            .'If you get interrupted while speaking, briefly finish your thought before responding.';
-
-        if (! $includeUserPersonality) {
-            return $base;
-        }
-
-        return $base.' The artist describes you like this: "'
-            .trim($this->character->personality).'" Stay true to that description.';
+        return CharacterPersona::compose($this->character, $includeUserPersonality);
     }
 }

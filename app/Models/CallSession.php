@@ -18,7 +18,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['character_id', 'runway_session_id', 'status', 'claimed_at'])]
+#[Fillable(['character_id', 'runway_session_id', 'status', 'claimed_at', 'transcript'])]
 class CallSession extends Model
 {
     /** @use HasFactory<CallSessionFactory> */
@@ -41,6 +41,7 @@ class CallSession extends Model
     {
         return [
             'claimed_at' => 'datetime',
+            'transcript' => 'array',
         ];
     }
 }

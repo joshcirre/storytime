@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\CharacterStatus;
 use App\Models\CallSession;
 use App\Models\Character;
+use App\Services\CharacterPersona;
 use App\Services\ConversationTools;
 use App\Services\Runway;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -23,11 +25,26 @@ class CallSessionController extends Controller
 
         abort_unless($character->status === CharacterStatus::Ready, 409, 'Character is not ready for calls yet.');
 
-        $runwaySessionId = $runway->createRealtimeSession(
-            $character->runway_avatar_id,
-            ConversationTools::definitions(),
-            maxDuration: 600,
-        );
+        try {
+            $runwaySessionId = $runway->createRealtimeSession(
+                $character->runway_avatar_id,
+                ConversationTools::definitions(),
+                maxDuration: 600,
+                personality: CharacterPersona::composeForSession($character),
+            );
+        } catch (RequestException $exception) {
+            if ($exception->response->serverError()) {
+                throw $exception;
+            }
+
+            // If the memory-enriched persona trips Runway's moderation, the
+            // call still happens — just with the avatar's baked-in persona.
+            $runwaySessionId = $runway->createRealtimeSession(
+                $character->runway_avatar_id,
+                ConversationTools::definitions(),
+                maxDuration: 600,
+            );
+        }
 
         $callSession = $character->callSessions()->create([
             'runway_session_id' => $runwaySessionId,

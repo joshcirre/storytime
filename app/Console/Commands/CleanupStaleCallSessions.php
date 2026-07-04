@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\FetchCallTranscript;
 use App\Models\CallSession;
 use App\Services\Runway;
 use Illuminate\Console\Attributes\Description;
@@ -30,6 +31,8 @@ class CleanupStaleCallSessions extends Command
             rescue(fn () => $runway->cancelRealtimeSession($session->runway_session_id));
 
             $session->update(['status' => 'ended']);
+
+            FetchCallTranscript::dispatch($session)->delay(now()->addSeconds(30));
 
             $this->info("Cancelled stale session {$session->runway_session_id}");
         }

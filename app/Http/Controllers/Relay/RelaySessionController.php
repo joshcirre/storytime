@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Relay;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\FetchCallTranscript;
 use App\Models\CallSession;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
@@ -37,13 +38,20 @@ class RelaySessionController extends Controller
     }
 
     /**
-     * Mark a session as ended once the relay detects the room closed.
+     * Mark a session as ended once the relay detects the room closed, and
+     * fetch its transcript so the character remembers the conversation.
      */
     public function end(string $runwaySessionId): Response
     {
-        CallSession::query()
+        $callSession = CallSession::query()
             ->where('runway_session_id', $runwaySessionId)
-            ->update(['status' => 'ended']);
+            ->first();
+
+        if ($callSession !== null && $callSession->status !== 'ended') {
+            $callSession->update(['status' => 'ended']);
+
+            FetchCallTranscript::dispatch($callSession)->delay(now()->addSeconds(30));
+        }
 
         return response()->noContent();
     }

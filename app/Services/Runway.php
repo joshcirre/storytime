@@ -80,7 +80,7 @@ class Runway
      *
      * @param  array<int, array<string, mixed>>  $tools
      */
-    public function createRealtimeSession(string $avatarId, array $tools = [], ?int $maxDuration = null): string
+    public function createRealtimeSession(string $avatarId, array $tools = [], ?int $maxDuration = null, ?string $personality = null): string
     {
         $payload = [
             'model' => 'gwm1_avatars',
@@ -93,6 +93,10 @@ class Runway
 
         if ($maxDuration !== null) {
             $payload['maxDuration'] = $maxDuration;
+        }
+
+        if ($personality !== null) {
+            $payload['personality'] = $personality;
         }
 
         return $this->request()->post('/v1/realtime_sessions', $payload)->throw()->json('id');
@@ -115,6 +119,17 @@ class Runway
     public function cancelRealtimeSession(string $sessionId): void
     {
         $this->request()->delete("/v1/realtime_sessions/{$sessionId}")->throw();
+    }
+
+    /**
+     * Retrieve a finished conversation, including its transcript. The
+     * conversation ID is the realtime session ID.
+     *
+     * @return array{id: string, status: string, transcript: array<int, array{role: string, content: string|null}>}
+     */
+    public function getConversation(string $conversationId): array
+    {
+        return $this->request()->get("/v1/avatar_conversations/{$conversationId}")->throw()->json();
     }
 
     /**

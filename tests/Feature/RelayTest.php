@@ -2,6 +2,7 @@
 
 use App\Models\CallSession;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
     config(['services.relay.token' => 'test-relay-token']);
@@ -35,6 +36,7 @@ test('pending sessions are listed for the relay', function () {
 });
 
 test('the relay can claim and end sessions', function () {
+    Queue::fake();
     $callSession = CallSession::factory()->create();
 
     $this->postJson(route('relay.sessions.claim', $callSession->runway_session_id), [], relayHeaders())
@@ -92,6 +94,7 @@ test('the weather tool returns a speakable error for unknown cities', function (
 });
 
 test('stale call sessions are cancelled at Runway and marked ended', function () {
+    Queue::fake();
     $stale = CallSession::factory()->claimed()->create(['created_at' => now()->subMinutes(20)]);
     $fresh = CallSession::factory()->create(['created_at' => now()->subMinutes(2)]);
 
