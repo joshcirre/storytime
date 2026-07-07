@@ -3,9 +3,14 @@
 use App\Http\Controllers\CallSessionController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\RelayStatusController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
+
+// Public showcase: proves the Node relay is alive next to the PHP app.
+Route::get('relay-status', [RelayStatusController::class, 'show'])->name('relay-status');
+Route::get('relay-status.json', [RelayStatusController::class, 'data'])->name('relay-status.data');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');

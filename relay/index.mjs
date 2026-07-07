@@ -22,6 +22,7 @@ if (!RELAY_TOKEN || !API_KEY) {
 }
 
 const handlers = new Map();
+const STARTED_AT = new Date().toISOString();
 
 async function laravel(path, { method = 'GET', body } = {}) {
     const response = await fetch(`${APP_URL}${path}`, {
@@ -70,7 +71,20 @@ async function attach(sessionId) {
     console.log(`[relay] attached to session ${sessionId}`);
 }
 
+async function heartbeat() {
+    try {
+        await laravel('/relay/heartbeat', {
+            method: 'POST',
+            body: { active_sessions: handlers.size, started_at: STARTED_AT },
+        });
+    } catch (error) {
+        console.error(`[relay] heartbeat failed: ${error.message}`);
+    }
+}
+
 async function poll() {
+    await heartbeat();
+
     try {
         const { sessions } = await laravel('/relay/sessions/pending');
 

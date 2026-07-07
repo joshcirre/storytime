@@ -5,11 +5,32 @@ namespace App\Http\Controllers\Relay;
 use App\Http\Controllers\Controller;
 use App\Jobs\FetchCallTranscript;
 use App\Models\CallSession;
+use App\Support\RelayHeartbeat;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 class RelaySessionController extends Controller
 {
+    /**
+     * Record a liveness ping from the Node relay process so the app (and its
+     * public status page) can prove the separate runtime is alive.
+     */
+    public function heartbeat(Request $request): Response
+    {
+        $validated = $request->validate([
+            'active_sessions' => ['required', 'integer', 'min:0'],
+            'started_at' => ['required', 'date'],
+        ]);
+
+        RelayHeartbeat::record(
+            activeSessions: $validated['active_sessions'],
+            startedAt: $validated['started_at'],
+        );
+
+        return response()->noContent();
+    }
+
     /**
      * List sessions the relay should attach a tool handler to.
      * Stale sessions are skipped so a relay restart doesn't join long-dead rooms.
