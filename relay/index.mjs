@@ -9,7 +9,24 @@
  * Required env: APP_URL, RELAY_TOKEN, RUNWAYML_API_SECRET.
  * Run with: node --env-file=.env relay/index.mjs
  */
+import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { createRpcHandler } from '@runwayml/avatars-node-rpc';
+
+// Read the installed package.json straight off disk (its `exports` map hides
+// the file from `require`), so the reported version is whatever Node actually
+// loaded — proof a Node-only SDK is present in this runtime.
+function readSdkVersion() {
+    try {
+        const pkgUrl = new URL('./node_modules/@runwayml/avatars-node-rpc/package.json', import.meta.url);
+
+        return JSON.parse(readFileSync(pkgUrl, 'utf8')).version;
+    } catch {
+        return 'unknown';
+    }
+}
+
+const sdkVersion = readSdkVersion();
 
 const APP_URL = (process.env.APP_URL ?? 'http://localhost:8000').replace(/\/$/, '');
 const RELAY_TOKEN = process.env.RELAY_TOKEN;
@@ -82,6 +99,45 @@ async function heartbeat() {
     }
 }
 
+/**
+ * Produce a payload the PHP app could not have generated itself: it runs in
+ * V8, reports the Node/engine build, and names a Node-only SDK it has loaded.
+ */
+function runDemo() {
+    const start = process.hrtime.bigint();
+    const nonce = randomUUID();
+    const computedInMs = Number(process.hrtime.bigint() - start) / 1e6;
+
+    return {
+        runtime: `Node.js ${process.version}`,
+        engine: `V8 ${process.versions.v8}`,
+        platform: `${process.platform}/${process.arch}`,
+        sdk: `@runwayml/avatars-node-rpc@${sdkVersion}`,
+        uptime_seconds: Math.round(process.uptime()),
+        nonce,
+        computed_in_ms: Number(computedInMs.toFixed(3)),
+    };
+}
+
+/**
+ * Answer any tasks the page has queued. Runs faster than the session poll so
+ * the showcase button feels responsive.
+ */
+async function pollTasks() {
+    try {
+        const { tasks } = await laravel('/relay/tasks');
+
+        for (const id of tasks) {
+            await laravel(`/relay/tasks/${id}`, { method: 'POST', body: { result: runDemo() } });
+            console.log(`[relay] answered demo task ${id}`);
+        }
+    } catch (error) {
+        console.error(`[relay] task poll failed: ${error.message}`);
+    }
+
+    setTimeout(pollTasks, 750);
+}
+
 async function poll() {
     await heartbeat();
 
@@ -117,3 +173,4 @@ process.on('SIGTERM', shutdown);
 
 console.log(`[relay] watching ${APP_URL} for sessions...`);
 poll();
+pollTasks();

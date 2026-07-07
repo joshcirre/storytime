@@ -67,6 +67,32 @@
         .stat { background: #ffffff08; border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
         .stat .value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
         .stat .key { font-size: 12px; color: var(--muted); margin-top: 4px; }
+        .demo {
+            background: #ffffff06; border: 1px solid var(--border); border-radius: 14px;
+            padding: 18px; margin-bottom: 24px;
+        }
+        .demo-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .demo-title { font-size: 15px; font-weight: 600; }
+        .demo-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+        #run {
+            flex: none; cursor: pointer; border: 0; border-radius: 10px;
+            background: var(--coral); color: #fff; font-weight: 600; font-size: 14px;
+            padding: 10px 16px; transition: transform .08s ease, opacity .2s ease;
+        }
+        #run:hover { transform: translateY(-1px); }
+        #run:disabled { opacity: .55; cursor: progress; transform: none; }
+        .demo-steps { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+        .demo-steps .step {
+            font-size: 12px; color: var(--muted); background: #00000030;
+            border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px;
+            opacity: .4; transition: opacity .2s ease, color .2s ease, border-color .2s ease;
+        }
+        .demo-steps .step.active { opacity: 1; color: #eaeaf0; border-color: #22c55e66; }
+        .demo-output {
+            margin-top: 14px; background: #05050a; border: 1px solid var(--border);
+            border-radius: 10px; padding: 14px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+            font-size: 13px; line-height: 1.6; color: #b8f5c8; white-space: pre-wrap; word-break: break-word;
+        }
         .flow {
             display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap;
             background: #00000030; border: 1px solid var(--border); border-radius: 14px;
@@ -123,6 +149,22 @@
                 <div class="value" id="today">{{ $status['sessions_today'] }}</div>
                 <div class="key">Sessions today</div>
             </div>
+        </div>
+
+        <div class="demo">
+            <div class="demo-head">
+                <div>
+                    <div class="demo-title">Ask the Node process to do something PHP can't</div>
+                    <div class="demo-sub">PHP forwards this to the sidecar. Node runs it in V8 and answers.</div>
+                </div>
+                <button id="run" type="button">Run in Node ↦</button>
+            </div>
+            <div id="demo-steps" class="demo-steps" hidden>
+                <span class="step" data-step="1">① Browser → PHP</span>
+                <span class="step" data-step="2">② PHP → Node sidecar</span>
+                <span class="step" data-step="3">③ Node → PHP → Browser</span>
+            </div>
+            <pre id="demo-output" class="demo-output" hidden></pre>
         </div>
 
         <div class="flow">
@@ -205,6 +247,70 @@
 
         refresh();
         setInterval(refresh, 2000);
+
+        const CSRF = '{{ csrf_token() }}';
+        const runBtn = document.getElementById('run');
+        const steps = document.getElementById('demo-steps');
+        const output = document.getElementById('demo-output');
+
+        function setStep(n) {
+            steps.querySelectorAll('.step').forEach((el) => {
+                el.classList.toggle('active', Number(el.dataset.step) <= n);
+            });
+        }
+
+        function renderResult(r) {
+            output.textContent = [
+                'Node answered:',
+                '',
+                '  runtime       ' + r.runtime,
+                '  engine        ' + r.engine + '   ← no equivalent in the PHP runtime',
+                '  platform      ' + r.platform,
+                '  loaded sdk    ' + r.sdk + '   ← Node-only package',
+                '  process up    ' + r.uptime_seconds + 's',
+                '  executed in   ' + r.computed_in_ms + 'ms',
+                '  nonce         ' + r.nonce,
+            ].join('\n');
+        }
+
+        async function runInNode() {
+            runBtn.disabled = true;
+            runBtn.textContent = 'Waiting for Node…';
+            steps.hidden = false;
+            output.hidden = false;
+            output.textContent = 'Handing the task to PHP…';
+            setStep(1);
+
+            try {
+                const create = await fetch('{{ route('node-demo.store') }}', {
+                    method: 'POST',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': CSRF },
+                });
+                const { id } = await create.json();
+                setStep(2);
+                output.textContent = 'Queued. Waiting for the Node sidecar to pick it up…';
+
+                const startedAt = Date.now();
+                while (Date.now() - startedAt < 15000) {
+                    await new Promise((r) => setTimeout(r, 600));
+                    const res = await fetch('/node-demo/' + id, { headers: { Accept: 'application/json' } });
+                    const data = await res.json();
+                    if (data.status === 'completed' && data.result) {
+                        setStep(3);
+                        renderResult(data.result);
+                        return;
+                    }
+                }
+                output.textContent = 'No answer from Node — is the sidecar process running?';
+            } catch (e) {
+                output.textContent = 'Something went wrong reaching the sidecar.';
+            } finally {
+                runBtn.disabled = false;
+                runBtn.textContent = 'Run in Node ↦';
+            }
+        }
+
+        runBtn.addEventListener('click', runInNode);
     </script>
 </body>
 </html>
